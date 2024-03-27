@@ -284,6 +284,237 @@ pub fn string_enum(
   string_enum_with_message(source, definition, "Expected String enum")
 }
 
+// TODO: tests
+pub fn decode1(constructor: fn(t1) -> t, t1: Decoder(t1)) -> Decoder(t) {
+  fn(value) {
+    case t1(value) {
+      Ok(a) -> Ok(constructor(a))
+      a -> Error(extract_errors(a))
+    }
+  }
+}
+
+pub fn decode2(
+  constructor: fn(t1, t2) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+) -> Decoder(t) {
+  fn(value) {
+    case t1(value), t2(value) {
+      Ok(a), Ok(b) -> Ok(constructor(a, b))
+      a, b -> Error(list.concat([extract_errors(a), extract_errors(b)]))
+    }
+  }
+}
+
+pub fn decode3(
+  constructor: fn(t1, t2, t3) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+) -> Decoder(t) {
+  fn(value) {
+    case t1(value), t2(value), t3(value) {
+      Ok(a), Ok(b), Ok(c) -> Ok(constructor(a, b, c))
+      a, b, c ->
+        Error(
+          list.concat([extract_errors(a), extract_errors(b), extract_errors(c)]),
+        )
+    }
+  }
+}
+
+pub fn decode4(
+  constructor: fn(t1, t2, t3, t4) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+  t4: Decoder(t4),
+) -> Decoder(t) {
+  fn(data) {
+    case t1(data), t2(data), t3(data), t4(data) {
+      Ok(a), Ok(b), Ok(c), Ok(d) -> Ok(constructor(a, b, c, d))
+      a, b, c, d ->
+        Error(
+          list.concat([
+            extract_errors(a),
+            extract_errors(b),
+            extract_errors(c),
+            extract_errors(d),
+          ]),
+        )
+    }
+  }
+}
+
+pub fn decode5(
+  constructor: fn(t1, t2, t3, t4, t5) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+  t4: Decoder(t4),
+  t5: Decoder(t5),
+) -> Decoder(t) {
+  fn(data) {
+    case t1(data), t2(data), t3(data), t4(data), t5(data) {
+      Ok(a), Ok(b), Ok(c), Ok(d), Ok(e) -> Ok(constructor(a, b, c, d, e))
+      a, b, c, d, e ->
+        Error(
+          list.concat([
+            extract_errors(a),
+            extract_errors(b),
+            extract_errors(c),
+            extract_errors(d),
+            extract_errors(e),
+          ]),
+        )
+    }
+  }
+}
+
+pub fn decode6(
+  constructor: fn(t1, t2, t3, t4, t5, t6) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+  t4: Decoder(t4),
+  t5: Decoder(t5),
+  t6: Decoder(t6),
+) -> Decoder(t) {
+  fn(data) {
+    case t1(data), t2(data), t3(data), t4(data), t5(data), t6(data) {
+      Ok(a), Ok(b), Ok(c), Ok(d), Ok(e), Ok(f) ->
+        Ok(constructor(a, b, c, d, e, f))
+      a, b, c, d, e, f ->
+        Error(
+          list.concat([
+            extract_errors(a),
+            extract_errors(b),
+            extract_errors(c),
+            extract_errors(d),
+            extract_errors(e),
+            extract_errors(f),
+          ]),
+        )
+    }
+  }
+}
+
+pub fn decode7(
+  constructor: fn(t1, t2, t3, t4, t5, t6, t7) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+  t4: Decoder(t4),
+  t5: Decoder(t5),
+  t6: Decoder(t6),
+  t7: Decoder(t7),
+) -> Decoder(t) {
+  fn(data) {
+    case t1(data), t2(data), t3(data), t4(data), t5(data), t6(data), t7(data) {
+      Ok(a), Ok(b), Ok(c), Ok(d), Ok(e), Ok(f), Ok(g) ->
+        Ok(constructor(a, b, c, d, e, f, g))
+      a, b, c, d, e, f, g ->
+        Error(
+          list.concat([
+            extract_errors(a),
+            extract_errors(b),
+            extract_errors(c),
+            extract_errors(d),
+            extract_errors(e),
+            extract_errors(f),
+            extract_errors(g),
+          ]),
+        )
+    }
+  }
+}
+
+pub fn decode8(
+  constructor: fn(t1, t2, t3, t4, t5, t6, t7, t8) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+  t4: Decoder(t4),
+  t5: Decoder(t5),
+  t6: Decoder(t6),
+  t7: Decoder(t7),
+  t8: Decoder(t8),
+) -> Decoder(t) {
+  fn(data) {
+    case
+      t1(data),
+      t2(data),
+      t3(data),
+      t4(data),
+      t5(data),
+      t6(data),
+      t7(data),
+      t8(data)
+    {
+      Ok(a), Ok(b), Ok(c), Ok(d), Ok(e), Ok(f), Ok(g), Ok(h) ->
+        Ok(constructor(a, b, c, d, e, f, g, h))
+      a, b, c, d, e, f, g, h ->
+        Error(
+          list.concat([
+            extract_errors(a),
+            extract_errors(b),
+            extract_errors(c),
+            extract_errors(d),
+            extract_errors(e),
+            extract_errors(f),
+            extract_errors(g),
+            extract_errors(h),
+          ]),
+        )
+    }
+  }
+}
+
+pub fn decode9(
+  constructor: fn(t1, t2, t3, t4, t5, t6, t7, t8, t9) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+  t4: Decoder(t4),
+  t5: Decoder(t5),
+  t6: Decoder(t6),
+  t7: Decoder(t7),
+  t8: Decoder(t8),
+  t9: Decoder(t9),
+) -> Decoder(t) {
+  fn(data) {
+    case
+      t1(data),
+      t2(data),
+      t3(data),
+      t4(data),
+      t5(data),
+      t6(data),
+      t7(data),
+      t8(data),
+      t9(data)
+    {
+      Ok(a), Ok(b), Ok(c), Ok(d), Ok(e), Ok(f), Ok(g), Ok(h), Ok(i) ->
+        Ok(constructor(a, b, c, d, e, f, g, h, i))
+      a, b, c, d, e, f, g, h, i ->
+        Error(
+          list.concat([
+            extract_errors(a),
+            extract_errors(b),
+            extract_errors(c),
+            extract_errors(d),
+            extract_errors(e),
+            extract_errors(f),
+            extract_errors(g),
+            extract_errors(h),
+            extract_errors(i),
+          ]),
+        )
+    }
+  }
+}
+
 pub fn replace(
   source: Decoder(original_type),
   replace_value: new_type,
@@ -376,5 +607,12 @@ fn create_literal_decoder(
           ),
         ])
     }
+  }
+}
+
+fn extract_errors(result: Result(a, List(DecodeError))) -> List(DecodeError) {
+  case result {
+    Ok(_) -> []
+    Error(errors) -> errors
   }
 }
