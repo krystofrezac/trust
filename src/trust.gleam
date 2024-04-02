@@ -1,4 +1,5 @@
 import gleam/dynamic
+import gleam/io
 import gleam/dict
 import gleam/string
 import gleam/list
@@ -10,9 +11,11 @@ pub type DecodeErrorKind {
   TypeMismatch(expected: String, found: String)
   FieldNotFound
   NotInStringEnum(available_keys: List(String), found: String)
-  StringLenError(expected_length: Int, current_length: Int)
-  StringMinLenError(min_length: Int, current_length: Int)
-  StringMaxLenError(max_length: Int, current_length: Int)
+  StringLenError(expected_length: Int, actual_length: Int)
+  StringMinLenError(min_length: Int, actual_length: Int)
+  StringMaxLenError(max_length: Int, actual_length: Int)
+  NegativeTupleIndex(index: Int)
+  TupleTooSmall(required_size: Int, actual_size: Int)
 }
 
 pub type DecodeError {
@@ -73,8 +76,8 @@ pub fn string_len_with_message(
   fn(data) {
     use decoded_data <- result.try(source(data))
 
-    let current_length = string.length(decoded_data)
-    let is_in_limit = current_length == len
+    let actual_length = string.length(decoded_data)
+    let is_in_limit = actual_length == len
 
     case is_in_limit {
       True -> Ok(decoded_data)
@@ -84,7 +87,7 @@ pub fn string_len_with_message(
             message: message,
             error_kind: StringLenError(
               expected_length: len,
-              current_length: current_length,
+              actual_length: actual_length,
             ),
             path: [],
           ),
@@ -109,8 +112,8 @@ pub fn string_min_len_with_message(
   fn(data) {
     use decoded_data <- result.try(source(data))
 
-    let current_length = string.length(decoded_data)
-    let is_in_limit = current_length >= min_len
+    let actual_length = string.length(decoded_data)
+    let is_in_limit = actual_length >= min_len
 
     case is_in_limit {
       True -> Ok(decoded_data)
@@ -120,7 +123,7 @@ pub fn string_min_len_with_message(
             message: message,
             error_kind: StringMinLenError(
               min_length: min_len,
-              current_length: current_length,
+              actual_length: actual_length,
             ),
             path: [],
           ),
@@ -145,8 +148,8 @@ pub fn string_max_len_with_message(
   fn(data) {
     use decoded_data <- result.try(source(data))
 
-    let current_length = string.length(decoded_data)
-    let is_in_limit = current_length <= max_len
+    let actual_length = string.length(decoded_data)
+    let is_in_limit = actual_length <= max_len
 
     case is_in_limit {
       True -> Ok(decoded_data)
@@ -156,7 +159,7 @@ pub fn string_max_len_with_message(
             message: message,
             error_kind: StringMaxLenError(
               max_length: max_len,
-              current_length: current_length,
+              actual_length: actual_length,
             ),
             path: [],
           ),
@@ -282,6 +285,87 @@ pub fn string_enum(
   definition: List(#(String, output)),
 ) -> Decoder(output) {
   string_enum_with_message(source, definition, "Expected String enum")
+}
+
+pub fn element_with_message(
+  index: Int,
+  inner_decoder: Decoder(inner_type),
+  message: String,
+) -> Decoder(inner_type) {
+  fn(data) {
+    use _ <- result.try(case index < 0 {
+      True ->
+        Error([
+          DecodeError(
+            error_kind: NegativeTupleIndex(index: index),
+            message: message,
+            path: [],
+          ),
+        ])
+      False -> Ok(Nil)
+    })
+
+    use tuple <- result.try(
+      decode_tuple(data)
+      |> result.replace_error([
+        DecodeError(
+          error_kind: TypeMismatch(
+            expected: "Tuple",
+            found: dynamic.classify(data),
+          ),
+          message: message,
+          path: [],
+        ),
+      ]),
+    )
+
+    use element <- result.try(
+      tuple_get(tuple, index)
+      |> result.replace_error([
+        DecodeError(
+          error_kind: TupleTooSmall(
+            required_size: index + 1,
+            actual_size: tuple_size(tuple),
+          ),
+          message: message,
+          path: [],
+        ),
+      ]),
+    )
+
+    inner_decoder(element)
+  }
+}
+
+// A tuple of unknown size
+type UnknownTuple
+
+@external(erlang, "gleam_stdlib", "decode_tuple")
+@external(javascript, "../gleam_stdlib/gleam_stdlib.mjs", "decode_tuple")
+fn decode_tuple(
+  data: dynamic.Dynamic,
+) -> Result(UnknownTuple, dynamic.DecodeErrors)
+
+@external(erlang, "gleam_stdlib", "tuple_get")
+@external(javascript, "../gleam_stdlib/gleam_stdlib.mjs", "tuple_get")
+fn tuple_get(
+  a: UnknownTuple,
+  b: Int,
+) -> Result(dynamic.Dynamic, dynamic.DecodeErrors)
+
+@external(erlang, "gleam_stdlib", "size_of_tuple")
+@external(javascript, "../gleam_stdlib/gleam_stdlib.mjs", "length")
+fn tuple_size(a: UnknownTuple) -> Int
+
+pub fn element(
+  index: Int,
+  inner_decoder: Decoder(inner_type),
+) -> Decoder(inner_type) {
+  element_with_message(
+    index,
+    inner_decoder,
+    "Expected tuple of size at least " <> int.to_string(index + 1),
+  )
 }
 
 // TODO: tests
@@ -615,4 +699,10 @@ fn extract_errors(result: Result(a, List(DecodeError))) -> List(DecodeError) {
     Ok(_) -> []
     Error(errors) -> errors
   }
+}
+
+pub fn main() {
+  dynamic.from(#(0))
+  |> element_with_message(1, string, "")
+  |> io.debug
 }

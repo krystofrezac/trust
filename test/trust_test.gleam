@@ -143,7 +143,7 @@ pub fn string_len_with_message_test() {
     Error([
       trust.DecodeError(
         message: "msg",
-        error_kind: trust.StringLenError(expected_length: 2, current_length: 3),
+        error_kind: trust.StringLenError(expected_length: 2, actual_length: 3),
         path: [],
       ),
     ]),
@@ -159,7 +159,7 @@ pub fn string_len_with_message_test() {
     Error([
       trust.DecodeError(
         message: "msg",
-        error_kind: trust.StringLenError(expected_length: 4, current_length: 3),
+        error_kind: trust.StringLenError(expected_length: 4, actual_length: 3),
         path: [],
       ),
     ]),
@@ -193,7 +193,7 @@ pub fn string_min_len_with_message_test() {
     Error([
       trust.DecodeError(
         message: "msg",
-        error_kind: trust.StringMinLenError(min_length: 4, current_length: 3),
+        error_kind: trust.StringMinLenError(min_length: 4, actual_length: 3),
         path: [],
       ),
     ]),
@@ -227,7 +227,7 @@ pub fn string_max_len_with_message_test() {
     Error([
       trust.DecodeError(
         message: "msg",
-        error_kind: trust.StringMaxLenError(max_length: 2, current_length: 3),
+        error_kind: trust.StringMaxLenError(max_length: 2, actual_length: 3),
         path: [],
       ),
     ]),
@@ -386,6 +386,74 @@ pub fn string_map_enum_with_message_test() {
           available_keys: ["A", "B"],
           found: "C",
         ),
+        path: [],
+      ),
+    ]),
+  )
+}
+
+pub fn element_test() {
+  #("a", True)
+  |> dynamic.from
+  |> trust.element_with_message(0, trust.string, "msg")
+  |> should.equal(Ok("a"))
+
+  #("a", True)
+  |> dynamic.from
+  |> trust.element_with_message(1, trust.bool, "msg")
+  |> should.equal(Ok(True))
+
+  #("a", True)
+  |> dynamic.from
+  |> trust.element_with_message(-1, trust.bool, "msg")
+  |> should.equal(
+    Error([
+      trust.DecodeError(
+        error_kind: trust.NegativeTupleIndex(index: -1),
+        message: "msg",
+        path: [],
+      ),
+    ]),
+  )
+
+  #("a", True)
+  |> dynamic.from
+  |> trust.element_with_message(2, trust.bool, "msg")
+  |> should.equal(
+    Error([
+      trust.DecodeError(
+        error_kind: trust.TupleTooSmall(required_size: 3, actual_size: 2),
+        message: "msg",
+        path: [],
+      ),
+    ]),
+  )
+
+  #("a", True)
+  |> dynamic.from
+  |> trust.element_with_message(0, trust.bool_with_message("bool msg"), "msg")
+  |> should.equal(
+    Error([
+      trust.DecodeError(
+        error_kind: trust.TypeMismatch(expected: "Bool", found: "String"),
+        message: "bool msg",
+        path: [],
+      ),
+    ]),
+  )
+
+  #("a", True)
+  |> dynamic.from
+  |> trust.element_with_message(
+    1,
+    trust.string_with_message("string msg"),
+    "msg",
+  )
+  |> should.equal(
+    Error([
+      trust.DecodeError(
+        error_kind: trust.TypeMismatch(expected: "String", found: "Atom"),
+        message: "string msg",
         path: [],
       ),
     ]),
