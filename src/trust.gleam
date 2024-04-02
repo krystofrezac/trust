@@ -10,9 +10,11 @@ pub type DecodeErrorKind {
   TypeMismatch(expected: String, found: String)
   FieldNotFound
   NotInStringEnum(available_keys: List(String), found: String)
-  StringLenError(expected_length: Int, current_length: Int)
-  StringMinLenError(min_length: Int, current_length: Int)
-  StringMaxLenError(max_length: Int, current_length: Int)
+  StringLenError(expected_length: Int, actual_length: Int)
+  StringMinLenError(min_length: Int, actual_length: Int)
+  StringMaxLenError(max_length: Int, actual_length: Int)
+  TupleNegativeIndex(index: Int)
+  TupleTooSmall(required_size: Int, actual_size: Int)
 }
 
 pub type DecodeError {
@@ -73,8 +75,8 @@ pub fn string_len_with_message(
   fn(data) {
     use decoded_data <- result.try(source(data))
 
-    let current_length = string.length(decoded_data)
-    let is_in_limit = current_length == len
+    let actual_length = string.length(decoded_data)
+    let is_in_limit = actual_length == len
 
     case is_in_limit {
       True -> Ok(decoded_data)
@@ -84,7 +86,7 @@ pub fn string_len_with_message(
             message: message,
             error_kind: StringLenError(
               expected_length: len,
-              current_length: current_length,
+              actual_length: actual_length,
             ),
             path: [],
           ),
@@ -109,8 +111,8 @@ pub fn string_min_len_with_message(
   fn(data) {
     use decoded_data <- result.try(source(data))
 
-    let current_length = string.length(decoded_data)
-    let is_in_limit = current_length >= min_len
+    let actual_length = string.length(decoded_data)
+    let is_in_limit = actual_length >= min_len
 
     case is_in_limit {
       True -> Ok(decoded_data)
@@ -120,7 +122,7 @@ pub fn string_min_len_with_message(
             message: message,
             error_kind: StringMinLenError(
               min_length: min_len,
-              current_length: current_length,
+              actual_length: actual_length,
             ),
             path: [],
           ),
@@ -145,8 +147,8 @@ pub fn string_max_len_with_message(
   fn(data) {
     use decoded_data <- result.try(source(data))
 
-    let current_length = string.length(decoded_data)
-    let is_in_limit = current_length <= max_len
+    let actual_length = string.length(decoded_data)
+    let is_in_limit = actual_length <= max_len
 
     case is_in_limit {
       True -> Ok(decoded_data)
@@ -156,7 +158,7 @@ pub fn string_max_len_with_message(
             message: message,
             error_kind: StringMaxLenError(
               max_length: max_len,
-              current_length: current_length,
+              actual_length: actual_length,
             ),
             path: [],
           ),
@@ -282,6 +284,322 @@ pub fn string_enum(
   definition: List(#(String, output)),
 ) -> Decoder(output) {
   string_enum_with_message(source, definition, "Expected String enum")
+}
+
+pub fn element_with_message(
+  index: Int,
+  inner_decoder: Decoder(inner_type),
+  message: String,
+) -> Decoder(inner_type) {
+  fn(data) {
+    use _ <- result.try(case index < 0 {
+      True ->
+        Error([
+          DecodeError(
+            error_kind: TupleNegativeIndex(index: index),
+            message: message,
+            path: [],
+          ),
+        ])
+      False -> Ok(Nil)
+    })
+
+    use tuple <- result.try(
+      decode_tuple(data)
+      |> result.replace_error([
+        DecodeError(
+          error_kind: TypeMismatch(
+            expected: "Tuple",
+            found: dynamic.classify(data),
+          ),
+          message: message,
+          path: [],
+        ),
+      ]),
+    )
+
+    use element <- result.try(
+      tuple_get(tuple, index)
+      |> result.replace_error([
+        DecodeError(
+          error_kind: TupleTooSmall(
+            required_size: index + 1,
+            actual_size: tuple_size(tuple),
+          ),
+          message: message,
+          path: [],
+        ),
+      ]),
+    )
+
+    inner_decoder(element)
+  }
+}
+
+// A tuple of unknown size
+type UnknownTuple
+
+@external(erlang, "gleam_stdlib", "decode_tuple")
+@external(javascript, "../gleam_stdlib/gleam_stdlib.mjs", "decode_tuple")
+fn decode_tuple(
+  data: dynamic.Dynamic,
+) -> Result(UnknownTuple, dynamic.DecodeErrors)
+
+@external(erlang, "gleam_stdlib", "tuple_get")
+@external(javascript, "../gleam_stdlib/gleam_stdlib.mjs", "tuple_get")
+fn tuple_get(
+  a: UnknownTuple,
+  b: Int,
+) -> Result(dynamic.Dynamic, dynamic.DecodeErrors)
+
+@external(erlang, "gleam_stdlib", "size_of_tuple")
+@external(javascript, "../gleam_stdlib/gleam_stdlib.mjs", "length")
+fn tuple_size(a: UnknownTuple) -> Int
+
+pub fn element(
+  index: Int,
+  inner_decoder: Decoder(inner_type),
+) -> Decoder(inner_type) {
+  element_with_message(
+    index,
+    inner_decoder,
+    "Expected tuple of size at least " <> int.to_string(index + 1),
+  )
+}
+
+pub fn decode1(constructor: fn(t1) -> t, t1: Decoder(t1)) -> Decoder(t) {
+  fn(value) {
+    case t1(value) {
+      Ok(a) -> Ok(constructor(a))
+      a -> Error(all_errors(a))
+    }
+  }
+}
+
+pub fn decode2(
+  constructor: fn(t1, t2) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+) -> Decoder(t) {
+  fn(value) {
+    case t1(value), t2(value) {
+      Ok(a), Ok(b) -> Ok(constructor(a, b))
+      a, b -> Error(list.concat([all_errors(a), all_errors(b)]))
+    }
+  }
+}
+
+pub fn decode3(
+  constructor: fn(t1, t2, t3) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+) -> Decoder(t) {
+  fn(value) {
+    case t1(value), t2(value), t3(value) {
+      Ok(a), Ok(b), Ok(c) -> Ok(constructor(a, b, c))
+      a, b, c ->
+        Error(list.concat([all_errors(a), all_errors(b), all_errors(c)]))
+    }
+  }
+}
+
+pub fn decode4(
+  constructor: fn(t1, t2, t3, t4) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+  t4: Decoder(t4),
+) -> Decoder(t) {
+  fn(data) {
+    case t1(data), t2(data), t3(data), t4(data) {
+      Ok(a), Ok(b), Ok(c), Ok(d) -> Ok(constructor(a, b, c, d))
+      a, b, c, d ->
+        Error(
+          list.concat([
+            all_errors(a),
+            all_errors(b),
+            all_errors(c),
+            all_errors(d),
+          ]),
+        )
+    }
+  }
+}
+
+pub fn decode5(
+  constructor: fn(t1, t2, t3, t4, t5) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+  t4: Decoder(t4),
+  t5: Decoder(t5),
+) -> Decoder(t) {
+  fn(data) {
+    case t1(data), t2(data), t3(data), t4(data), t5(data) {
+      Ok(a), Ok(b), Ok(c), Ok(d), Ok(e) -> Ok(constructor(a, b, c, d, e))
+      a, b, c, d, e ->
+        Error(
+          list.concat([
+            all_errors(a),
+            all_errors(b),
+            all_errors(c),
+            all_errors(d),
+            all_errors(e),
+          ]),
+        )
+    }
+  }
+}
+
+pub fn decode6(
+  constructor: fn(t1, t2, t3, t4, t5, t6) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+  t4: Decoder(t4),
+  t5: Decoder(t5),
+  t6: Decoder(t6),
+) -> Decoder(t) {
+  fn(data) {
+    case t1(data), t2(data), t3(data), t4(data), t5(data), t6(data) {
+      Ok(a), Ok(b), Ok(c), Ok(d), Ok(e), Ok(f) ->
+        Ok(constructor(a, b, c, d, e, f))
+      a, b, c, d, e, f ->
+        Error(
+          list.concat([
+            all_errors(a),
+            all_errors(b),
+            all_errors(c),
+            all_errors(d),
+            all_errors(e),
+            all_errors(f),
+          ]),
+        )
+    }
+  }
+}
+
+pub fn decode7(
+  constructor: fn(t1, t2, t3, t4, t5, t6, t7) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+  t4: Decoder(t4),
+  t5: Decoder(t5),
+  t6: Decoder(t6),
+  t7: Decoder(t7),
+) -> Decoder(t) {
+  fn(data) {
+    case t1(data), t2(data), t3(data), t4(data), t5(data), t6(data), t7(data) {
+      Ok(a), Ok(b), Ok(c), Ok(d), Ok(e), Ok(f), Ok(g) ->
+        Ok(constructor(a, b, c, d, e, f, g))
+      a, b, c, d, e, f, g ->
+        Error(
+          list.concat([
+            all_errors(a),
+            all_errors(b),
+            all_errors(c),
+            all_errors(d),
+            all_errors(e),
+            all_errors(f),
+            all_errors(g),
+          ]),
+        )
+    }
+  }
+}
+
+pub fn decode8(
+  constructor: fn(t1, t2, t3, t4, t5, t6, t7, t8) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+  t4: Decoder(t4),
+  t5: Decoder(t5),
+  t6: Decoder(t6),
+  t7: Decoder(t7),
+  t8: Decoder(t8),
+) -> Decoder(t) {
+  fn(data) {
+    case
+      t1(data),
+      t2(data),
+      t3(data),
+      t4(data),
+      t5(data),
+      t6(data),
+      t7(data),
+      t8(data)
+    {
+      Ok(a), Ok(b), Ok(c), Ok(d), Ok(e), Ok(f), Ok(g), Ok(h) ->
+        Ok(constructor(a, b, c, d, e, f, g, h))
+      a, b, c, d, e, f, g, h ->
+        Error(
+          list.concat([
+            all_errors(a),
+            all_errors(b),
+            all_errors(c),
+            all_errors(d),
+            all_errors(e),
+            all_errors(f),
+            all_errors(g),
+            all_errors(h),
+          ]),
+        )
+    }
+  }
+}
+
+pub fn decode9(
+  constructor: fn(t1, t2, t3, t4, t5, t6, t7, t8, t9) -> t,
+  t1: Decoder(t1),
+  t2: Decoder(t2),
+  t3: Decoder(t3),
+  t4: Decoder(t4),
+  t5: Decoder(t5),
+  t6: Decoder(t6),
+  t7: Decoder(t7),
+  t8: Decoder(t8),
+  t9: Decoder(t9),
+) -> Decoder(t) {
+  fn(data) {
+    case
+      t1(data),
+      t2(data),
+      t3(data),
+      t4(data),
+      t5(data),
+      t6(data),
+      t7(data),
+      t8(data),
+      t9(data)
+    {
+      Ok(a), Ok(b), Ok(c), Ok(d), Ok(e), Ok(f), Ok(g), Ok(h), Ok(i) ->
+        Ok(constructor(a, b, c, d, e, f, g, h, i))
+      a, b, c, d, e, f, g, h, i ->
+        Error(
+          list.concat([
+            all_errors(a),
+            all_errors(b),
+            all_errors(c),
+            all_errors(d),
+            all_errors(e),
+            all_errors(f),
+            all_errors(g),
+            all_errors(h),
+            all_errors(i),
+          ]),
+        )
+    }
+  }
+}
+
+fn all_errors(result: Result(a, List(DecodeError))) -> List(DecodeError) {
+  case result {
+    Ok(_) -> []
+    Error(errors) -> errors
+  }
 }
 
 pub fn replace(
