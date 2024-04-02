@@ -1,5 +1,4 @@
 import gleam/dynamic
-import gleam/io
 import gleam/dict
 import gleam/string
 import gleam/list
@@ -14,7 +13,7 @@ pub type DecodeErrorKind {
   StringLenError(expected_length: Int, actual_length: Int)
   StringMinLenError(min_length: Int, actual_length: Int)
   StringMaxLenError(max_length: Int, actual_length: Int)
-  NegativeTupleIndex(index: Int)
+  TupleNegativeIndex(index: Int)
   TupleTooSmall(required_size: Int, actual_size: Int)
 }
 
@@ -297,7 +296,7 @@ pub fn element_with_message(
       True ->
         Error([
           DecodeError(
-            error_kind: NegativeTupleIndex(index: index),
+            error_kind: TupleNegativeIndex(index: index),
             message: message,
             path: [],
           ),
@@ -368,12 +367,11 @@ pub fn element(
   )
 }
 
-// TODO: tests
 pub fn decode1(constructor: fn(t1) -> t, t1: Decoder(t1)) -> Decoder(t) {
   fn(value) {
     case t1(value) {
       Ok(a) -> Ok(constructor(a))
-      a -> Error(extract_errors(a))
+      a -> Error(all_errors(a))
     }
   }
 }
@@ -386,7 +384,7 @@ pub fn decode2(
   fn(value) {
     case t1(value), t2(value) {
       Ok(a), Ok(b) -> Ok(constructor(a, b))
-      a, b -> Error(list.concat([extract_errors(a), extract_errors(b)]))
+      a, b -> Error(list.concat([all_errors(a), all_errors(b)]))
     }
   }
 }
@@ -401,9 +399,7 @@ pub fn decode3(
     case t1(value), t2(value), t3(value) {
       Ok(a), Ok(b), Ok(c) -> Ok(constructor(a, b, c))
       a, b, c ->
-        Error(
-          list.concat([extract_errors(a), extract_errors(b), extract_errors(c)]),
-        )
+        Error(list.concat([all_errors(a), all_errors(b), all_errors(c)]))
     }
   }
 }
@@ -421,10 +417,10 @@ pub fn decode4(
       a, b, c, d ->
         Error(
           list.concat([
-            extract_errors(a),
-            extract_errors(b),
-            extract_errors(c),
-            extract_errors(d),
+            all_errors(a),
+            all_errors(b),
+            all_errors(c),
+            all_errors(d),
           ]),
         )
     }
@@ -445,11 +441,11 @@ pub fn decode5(
       a, b, c, d, e ->
         Error(
           list.concat([
-            extract_errors(a),
-            extract_errors(b),
-            extract_errors(c),
-            extract_errors(d),
-            extract_errors(e),
+            all_errors(a),
+            all_errors(b),
+            all_errors(c),
+            all_errors(d),
+            all_errors(e),
           ]),
         )
     }
@@ -472,12 +468,12 @@ pub fn decode6(
       a, b, c, d, e, f ->
         Error(
           list.concat([
-            extract_errors(a),
-            extract_errors(b),
-            extract_errors(c),
-            extract_errors(d),
-            extract_errors(e),
-            extract_errors(f),
+            all_errors(a),
+            all_errors(b),
+            all_errors(c),
+            all_errors(d),
+            all_errors(e),
+            all_errors(f),
           ]),
         )
     }
@@ -501,13 +497,13 @@ pub fn decode7(
       a, b, c, d, e, f, g ->
         Error(
           list.concat([
-            extract_errors(a),
-            extract_errors(b),
-            extract_errors(c),
-            extract_errors(d),
-            extract_errors(e),
-            extract_errors(f),
-            extract_errors(g),
+            all_errors(a),
+            all_errors(b),
+            all_errors(c),
+            all_errors(d),
+            all_errors(e),
+            all_errors(f),
+            all_errors(g),
           ]),
         )
     }
@@ -541,14 +537,14 @@ pub fn decode8(
       a, b, c, d, e, f, g, h ->
         Error(
           list.concat([
-            extract_errors(a),
-            extract_errors(b),
-            extract_errors(c),
-            extract_errors(d),
-            extract_errors(e),
-            extract_errors(f),
-            extract_errors(g),
-            extract_errors(h),
+            all_errors(a),
+            all_errors(b),
+            all_errors(c),
+            all_errors(d),
+            all_errors(e),
+            all_errors(f),
+            all_errors(g),
+            all_errors(h),
           ]),
         )
     }
@@ -584,18 +580,25 @@ pub fn decode9(
       a, b, c, d, e, f, g, h, i ->
         Error(
           list.concat([
-            extract_errors(a),
-            extract_errors(b),
-            extract_errors(c),
-            extract_errors(d),
-            extract_errors(e),
-            extract_errors(f),
-            extract_errors(g),
-            extract_errors(h),
-            extract_errors(i),
+            all_errors(a),
+            all_errors(b),
+            all_errors(c),
+            all_errors(d),
+            all_errors(e),
+            all_errors(f),
+            all_errors(g),
+            all_errors(h),
+            all_errors(i),
           ]),
         )
     }
+  }
+}
+
+fn all_errors(result: Result(a, List(DecodeError))) -> List(DecodeError) {
+  case result {
+    Ok(_) -> []
+    Error(errors) -> errors
   }
 }
 
@@ -692,17 +695,4 @@ fn create_literal_decoder(
         ])
     }
   }
-}
-
-fn extract_errors(result: Result(a, List(DecodeError))) -> List(DecodeError) {
-  case result {
-    Ok(_) -> []
-    Error(errors) -> errors
-  }
-}
-
-pub fn main() {
-  dynamic.from(#(0))
-  |> element_with_message(1, string, "")
-  |> io.debug
 }
