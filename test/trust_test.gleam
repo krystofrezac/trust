@@ -66,6 +66,111 @@ pub fn bool_literal_with_message_test() {
   )
 }
 
+pub fn int_with_message_test() {
+  1
+  |> dynamic.from
+  |> trust.int_with_message("msg")
+  |> should.equal(Ok(1))
+
+  True
+  |> dynamic.from
+  |> trust.int_with_message("msg")
+  |> should.equal(
+    Error([
+      trust.DecodeError(
+        error_kind: trust.TypeMismatch(expected: "Int", found: "Atom"),
+        message: "msg",
+        path: [],
+      ),
+    ]),
+  )
+}
+
+pub fn int_literal_with_message_test() {
+  1
+  |> dynamic.from
+  |> trust.int_literal_with_message(1, "msg")
+  |> should.equal(Ok(1))
+
+  2
+  |> dynamic.from
+  |> trust.int_literal_with_message(1, "msg")
+  |> should.equal(
+    Error([
+      trust.DecodeError(
+        error_kind: trust.TypeMismatch(expected: "1", found: "2"),
+        message: "msg",
+        path: [],
+      ),
+    ]),
+  )
+
+  True
+  |> dynamic.from
+  |> trust.int_with_message("msg")
+  |> should.equal(
+    Error([
+      trust.DecodeError(
+        error_kind: trust.TypeMismatch(expected: "Int", found: "Atom"),
+        message: "msg",
+        path: [],
+      ),
+    ]),
+  )
+}
+
+pub fn int_min_with_message_test() {
+  1
+  |> dynamic.from
+  |> {
+    trust.int
+    |> trust.int_min_with_message(0, "msg")
+  }
+  |> should.equal(Ok(1))
+
+  -1
+  |> dynamic.from
+  |> {
+    trust.int
+    |> trust.int_min_with_message(0, "msg")
+  }
+  |> should.equal(
+    Error([
+      trust.DecodeError(
+        error_kind: trust.IntMinError(min: 0, actual: -1),
+        message: "msg",
+        path: [],
+      ),
+    ]),
+  )
+}
+
+pub fn int_max_with_message_test() {
+  -1
+  |> dynamic.from
+  |> {
+    trust.int
+    |> trust.int_max_with_message(0, "msg")
+  }
+  |> should.equal(Ok(-1))
+
+  1
+  |> dynamic.from
+  |> {
+    trust.int
+    |> trust.int_max_with_message(0, "msg")
+  }
+  |> should.equal(
+    Error([
+      trust.DecodeError(
+        error_kind: trust.IntMaxError(max: 0, actual: 1),
+        message: "msg",
+        path: [],
+      ),
+    ]),
+  )
+}
+
 pub fn string_with_message_test() {
   ""
   |> dynamic.from
