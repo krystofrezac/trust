@@ -8,6 +8,8 @@ import gleam/bool
 
 pub type DecodeErrorKind {
   TypeMismatch(expected: String, found: String)
+  IntMinError(min: Int, actual: Int)
+  IntMaxError(max: Int, actual: Int)
   FieldNotFound
   NotInStringEnum(available_keys: List(String), found: String)
   StringLenError(expected_length: Int, actual_length: Int)
@@ -41,6 +43,82 @@ pub fn bool_literal_with_message(value: Bool, message: String) -> Decoder(Bool) 
 
 pub fn bool_literal(value: Bool) -> Decoder(Bool) {
   bool_literal_with_message(value, "Expected " <> bool.to_string(value))
+}
+
+pub fn int_with_message(message: String) -> Decoder(Int) {
+  create_basic_decoder(message, "Int", dynamic.int)
+}
+
+pub fn int(data: dynamic.Dynamic) -> DecodeResult(Int) {
+  int_with_message("Expected type Int")(data)
+}
+
+pub fn int_literal_with_message(value: Int, message: String) -> Decoder(Int) {
+  create_literal_decoder(message, value, int.to_string, dynamic.int)
+}
+
+pub fn int_literal(value: Int) -> Decoder(Int) {
+  int_literal_with_message(value, "Expected " <> int.to_string(value))
+}
+
+pub fn int_min_with_message(
+  source: Decoder(Int),
+  min: Int,
+  message: String,
+) -> Decoder(Int) {
+  fn(data) {
+    use decoded <- result.try(source(data))
+
+    case decoded >= min {
+      True -> Ok(decoded)
+      False ->
+        Error([
+          DecodeError(
+            message: message,
+            error_kind: IntMinError(min: min, actual: decoded),
+            path: [],
+          ),
+        ])
+    }
+  }
+}
+
+pub fn int_min(source: Decoder(Int), min: Int) -> Decoder(Int) {
+  int_min_with_message(
+    source,
+    min,
+    "Int is too small. Min is " <> int.to_string(min),
+  )
+}
+
+pub fn int_max_with_message(
+  source: Decoder(Int),
+  max: Int,
+  message: String,
+) -> Decoder(Int) {
+  fn(data) {
+    use decoded <- result.try(source(data))
+
+    case decoded <= max {
+      True -> Ok(decoded)
+      False ->
+        Error([
+          DecodeError(
+            message: message,
+            error_kind: IntMaxError(max: max, actual: decoded),
+            path: [],
+          ),
+        ])
+    }
+  }
+}
+
+pub fn int_max(source: Decoder(Int), max: Int) -> Decoder(Int) {
+  int_max_with_message(
+    source,
+    max,
+    "Int too large. Max is " <> int.to_string(max),
+  )
 }
 
 pub fn string_with_message(message: String) -> Decoder(String) {
