@@ -1,6 +1,6 @@
 # trust
 
-Data validation library for gleam.
+Data validation library for Gleam
 
 > :construction: Work in progress. Any changes may come.
 
